@@ -150,3 +150,47 @@ class VqeQnp(object):
         # energy, parameter = optimizer.optimize(self.num_params, eval)
 
         return energy, parameter, exp_vals
+
+    def run_vqe_cudaq_mpi(self, hamiltonian, options=None):
+        """
+        Run VQE
+        """
+        print("Start VQE")
+        #optimizer = cudaq.optimizers.NelderMead()
+        optimizer = cudaq.optimizers.COBYLA()
+        # IMPORTANT: seed numpy since we're about to run MPI (different processes must use the same seed)
+        np.random.seed(0)
+        optimizer.initial_parameters = np.random.rand(self.num_params)
+        kernel, thetas = self.layers()
+        optimizer.max_iterations = options.get('maxiter', 100)
+
+        # optimizer...
+
+        # Finally, we can pass all of that into `cudaq.vqe` and it will automatically run our
+        # optimization loop and return a tuple of the minimized eigenvalue of our `spin_operator`
+        # and the list of optimal variational parameters.
+        # energy, parameter = cudaq.vqe(
+        #    kernel=kernel,
+        #    spin_operator=hamiltonian,
+        #    optimizer=optimizer,
+        #    parameter_count=self.num_params)
+
+        #def eval(theta):
+        #    # Callback goes here
+        #    value = cudaq.observe(kernel, hamiltonian, thetas).expectation_z()
+        #    print(value)
+        #    return value
+
+        exp_vals = []
+
+        def eval(theta):
+            exp_val = cudaq.observe(kernel, hamiltonian, theta, execution=cudaq.parallel.mpi).expectation_z()
+
+            exp_vals.append(exp_val)
+
+            return exp_val
+
+        energy, parameter = optimizer.optimize(self.num_params, eval)
+        # energy, parameter = optimizer.optimize(self.num_params, eval)
+
+        return energy, parameter, exp_vals

@@ -9,5 +9,5 @@
   "atom": "geo.xyz",
   "dmrg": 1,
   "dmrg_states": 200,
-  "target" : "nvidia"
+  "target" : "nvidia-mqpu"
 }

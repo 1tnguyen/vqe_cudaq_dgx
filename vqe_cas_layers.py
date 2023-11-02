@@ -5,6 +5,8 @@ import pickle
 import json
 from src.vqe_cudaq_qnp import VqeQnp
 from src.utils_cudaq import get_cudaq_hamiltonian
+import cudaq
+import time
 
 if __name__ == "__main__":
     np.set_printoptions(precision=6, suppress=True, linewidth=10000)
@@ -12,6 +14,14 @@ if __name__ == "__main__":
         options = json.load(f)
 
     target = options.get("target", "nvidia")
+    cudaq.set_target(target)
+
+    if target == "nvidia-mqpu":
+        cudaq.mpi.initialize()
+        target = cudaq.get_target()
+        numQpus = target.num_qpus()
+        print("MPI rank", cudaq.mpi.rank(), ": Num QPUs:", numQpus)
+
     num_active_orbitals = options.get("num_active_orbitals", 5)
     num_active_electrons = options.get("num_active_electrons", 5)
     basis = options.get("basis", 'cc-pVTZ').lower()
@@ -24,7 +34,12 @@ if __name__ == "__main__":
     filehandler = open(hamiltonian_fname, 'rb')
     jw_hamiltonian = pickle.load(filehandler)
 
+    if cudaq.mpi.rank() == 0:
+        print("Start converting Hamiltonian")
+        start_time = time.time()
     hamiltonian_cudaq = get_cudaq_hamiltonian(jw_hamiltonian)
+    if cudaq.mpi.rank() == 0:
+        print("Finish converting Hamiltonian. Elapsed time: ", time.time() - start_time, "seconds.")
 
     n_qubits = 2 * num_active_orbitals
 
@@ -38,7 +53,11 @@ if __name__ == "__main__":
                      n_layers=n_vqe_layers,
                      init_mo_occ=init_mo_occ)
 
-        energy, params, exp_vals = vqe.run_vqe_cudaq(hamiltonian_cudaq, options={'maxiter': 10000, 'callback': True})
+        if target == "nvidia-mqpu":
+            energy, params, exp_vals = vqe.run_vqe_cudaq_mpi(hamiltonian_cudaq, options={'maxiter': 1000, 'callback': True})
+        else:
+            energy, params, exp_vals = vqe.run_vqe_cudaq(hamiltonian_cudaq, options={'maxiter': 1000, 'callback': True})
+
         exp_vals = np.array(exp_vals)
         exp_vals = np.reshape(exp_vals, (exp_vals.size, 1))
         print(energy, params)
