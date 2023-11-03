@@ -15,11 +15,10 @@ if __name__ == "__main__":
 
     target = options.get("target", "nvidia")
     cudaq.set_target(target)
-
+    cudaq.mpi.initialize()
     if target == "nvidia-mqpu":
-        cudaq.mpi.initialize()
-        target = cudaq.get_target()
-        numQpus = target.num_qpus()
+        cudaq_target = cudaq.get_target()
+        numQpus = cudaq_target.num_qpus()
         print("MPI rank", cudaq.mpi.rank(), ": Num QPUs:", numQpus)
 
     num_active_orbitals = options.get("num_active_orbitals", 5)
@@ -51,7 +50,8 @@ if __name__ == "__main__":
         print("# Start VQE with init_mo_occ", init_mo_occ, "layers", n_vqe_layers)
         vqe = VqeQnp(n_qubits=n_qubits,
                      n_layers=n_vqe_layers,
-                     init_mo_occ=init_mo_occ)
+                     init_mo_occ=init_mo_occ,
+                     target=target)
 
         if target == "nvidia-mqpu":
             energy, params, exp_vals = vqe.run_vqe_cudaq_mpi(hamiltonian_cudaq, options={'maxiter': 1000, 'callback': True})
